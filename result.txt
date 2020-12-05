@@ -1,0 +1,95 @@
+line:3 name:a scope:1 type:int
+line:5 name:s scope:1 type:int
+line:6 name:ch scope:1 type:char
+line:10 name:a scope:2 type:int
+line:18 name:b scope:3 type:int
+line:20 name:i scope:3 type:int
+@0 Info: lineno:0 type:program Child: 1 
+@1 Info: lineno:25 type:function Child: 2 3 4 5 6 7 8 9 10 
+@2 Info: lineno:2 type:void Child: 
+@3 Info: lineno:2 type:variable Child: 
+@4 Info: lineno:2 type:expression Child: 
+@5 Info: lineno:3 type:declare Child: 11 12 
+@6 Info: lineno:4 type:expression Child: 13 14 
+@7 Info: lineno:5 type:declare Child: 15 16 17 
+@8 Info: lineno:6 type:declare Child: 18 19 
+@9 Info: lineno:7 type:scanf Child: 20 21 
+@10 Info: lineno:24 type:while Child: 22 23 24 25 26 27 28 
+@11 Info: lineno:3 type:int Child: 
+@12 Info: lineno:3 type:variable Child: 
+@13 Info: lineno:4 type:variable Child: 
+@14 Info: lineno:4 type:const Child: 
+@15 Info: lineno:5 type:int Child: 
+@16 Info: lineno:5 type:variable Child: 
+@17 Info: lineno:5 type:const Child: 
+@18 Info: lineno:6 type:char Child: 
+@19 Info: lineno:6 type:variable Child: 
+@20 Info: lineno:7 type:const Child: 
+@21 Info: lineno:7 type:variable Child: 
+@22 Info: lineno:8 type:or Child: 29 30 
+@23 Info: lineno:9 type:expression Child: 46 47 
+@24 Info: lineno:10 type:declare Child: 48 49 
+@25 Info: lineno:11 type:expression Child: 50 51 
+@26 Info: lineno:12 type:expression Child: 52 53 
+@27 Info: lineno:15 type:if Child: 54 55 56 
+@28 Info: lineno:24 type:if Child: 63 64 65 66 67 
+@29 Info: lineno:8 type:and Child: 31 32 
+@30 Info: lineno:8 type:and Child: 37 38 
+@31 Info: lineno:8 type:greater Child: 33 34 
+@32 Info: lineno:8 type:smaller or equal Child: 35 36 
+@33 Info: lineno:8 type:variable Child: 
+@34 Info: lineno:8 type:const Child: 
+@35 Info: lineno:8 type:variable Child: 
+@36 Info: lineno:8 type:const Child: 
+@37 Info: lineno:8 type:equal Child: 39 40 
+@38 Info: lineno:8 type:not Child: 43 
+@39 Info: lineno:8 type:expression Child: 41 42 
+@40 Info: lineno:8 type:const Child: 
+@41 Info: lineno:8 type:variable Child: 
+@42 Info: lineno:8 type:const Child: 
+@43 Info: lineno:8 type:equal Child: 44 45 
+@44 Info: lineno:8 type:variable Child: 
+@45 Info: lineno:8 type:const Child: 
+@46 Info: lineno:9 type:variable Child: 
+@47 Info: lineno:9 type:const Child: 
+@48 Info: lineno:10 type:int Child: 
+@49 Info: lineno:10 type:variable Child: 
+@50 Info: lineno:11 type:variable Child: 
+@51 Info: lineno:11 type:const Child: 
+@52 Info: lineno:12 type:variable Child: 
+@53 Info: lineno:12 type:variable Child: 
+@54 Info: lineno:13 type:equal Child: 57 58 
+@55 Info: lineno:14 type:expression Child: 59 60 
+@56 Info: lineno:15 type:expression Child: 61 62 
+@57 Info: lineno:13 type:variable Child: 
+@58 Info: lineno:13 type:const Child: 
+@59 Info: lineno:14 type:variable Child: 
+@60 Info: lineno:14 type:const Child: 
+@61 Info: lineno:15 type:variable Child: 
+@62 Info: lineno:15 type:const Child: 
+@63 Info: lineno:16 type:smaller Child: 68 69 
+@64 Info: lineno:17 type:printf Child: 70 71 
+@65 Info: lineno:18 type:declare Child: 72 73 
+@66 Info: lineno:19 type:expression Child: 74 75 
+@67 Info: lineno:22 type:for Child: 76 77 78 79 
+@68 Info: lineno:16 type:variable Child: 
+@69 Info: lineno:16 type:const Child: 
+@70 Info: lineno:17 type:const Child: 
+@71 Info: lineno:17 type:variable Child: 
+@72 Info: lineno:18 type:int Child: 
+@73 Info: lineno:18 type:variable Child: 
+@74 Info: lineno:19 type:variable Child: 
+@75 Info: lineno:19 type:const Child: 
+@76 Info: lineno:20 type:declare Child: 80 81 82 
+@77 Info: lineno:20 type:smaller Child: 83 84 
+@78 Info: lineno:20 type:expression Child: 85 
+@79 Info: lineno:21 type:printf Child: 86 87 
+@80 Info: lineno:20 type:int Child: 
+@81 Info: lineno:20 type:variable Child: 
+@82 Info: lineno:20 type:const Child: 
+@83 Info: lineno:20 type:variable Child: 
+@84 Info: lineno:20 type:variable Child: 
+@85 Info: lineno:20 type:variable Child: 
+@86 Info: lineno:21 type:const Child: 
+@87 Info: lineno:21 type:variable Child: 
+0
