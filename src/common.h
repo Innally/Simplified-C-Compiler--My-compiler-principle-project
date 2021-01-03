@@ -13,18 +13,22 @@ using std::unordered_map;
 
 #include "./tree.h"
 #include "./main.tab.h"
+//#include "./symbol.h"
 
-struct tokeninfo
-{
-    int scope;
-    int line;
-    string name;
-    string type;
-    void print()
-    {   
-        cout<<"line:"<<line<<" name:"<<name<<" scope:"<<scope<<" type:"<<type;
-    }
-};
-static map<string,tokeninfo> tokentable;
+
+
+
+// struct tokeninfo
+// {
+//     int scope;
+//     int line;
+//     string name;
+//     string type;
+//     void print()
+//     {   
+//         cout<<"line:"<<line<<" name:"<<name<<" scope:"<<scope<<" type:"<<type;
+//     }
+// };
+// static map<string,tokeninfo> tokentable;
 
 #endif

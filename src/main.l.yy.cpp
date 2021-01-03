@@ -515,8 +515,8 @@ char *yytext;
 #include "common.h"
 #include "main.tab.h"  // yacc header
 int lineno=1;
-int scope=0;
 
+extern symbol_table symtbl;
 
 #line 522 "src/main.l.yy.cpp"
 #line 523 "src/main.l.yy.cpp"
@@ -948,7 +948,7 @@ return GREATER;
 case 31:
 YY_RULE_SETUP
 #line 60 "src/main.l"
-{return SMALLER;}
+return SMALLER;
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
@@ -984,44 +984,60 @@ case 38:
 YY_RULE_SETUP
 #line 69 "src/main.l"
 {
-    scope++;
+    TreeNode* node=new TreeNode(lineno,NODE_BLOCK);
+    node->var_name="new code block";
+    yylval=node;
+    int t=symtbl.getsize()-1;
+    if (t<0)
+        t=0;
+    symtbl.scope.push(t);
     return LBRACE;
     }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 73 "src/main.l"
+#line 79 "src/main.l"
 {
-    scope--;
+    
+    int pos=symtbl.scope.top();
+    if(pos>0)
+    {
+        string name=symtbl.getname(pos);
+        int token=symtbl.gettoken(name);
+        string type=symtbl.get_type(pos);
+        symtbl.insert(name,token,type);
+        symtbl.setorder(symtbl.getsize()-1,pos);
+        symtbl.scope.pop();
+    }
     return RBRACE;
     }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 78 "src/main.l"
+#line 94 "src/main.l"
 {
     //number int
-    TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    TreeNode* node = new TreeNode(lineno, NODE_CONSTINT);
     node->type = TYPE_INT;
-    node->int_val = atoi(yytext);
+    node->attr.vali = atoi(yytext);
     yylval = node;
     return INTEGER;
 }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 87 "src/main.l"
+#line 103 "src/main.l"
 {
-    TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    TreeNode* node = new TreeNode(lineno, NODE_CONSTCHAR);
     node->type = TYPE_CHAR;
-    node->int_val = yytext[1];
+    node->attr.vali = yytext[1];
     yylval = node;
     return CHAR;
 }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 95 "src/main.l"
+#line 111 "src/main.l"
 {
     TreeNode* node = new TreeNode(lineno, NODE_VAR);
     node->var_name = string(yytext);
@@ -1031,9 +1047,10 @@ YY_RULE_SETUP
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 102 "src/main.l"
+#line 118 "src/main.l"
 {
     TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    node->type=TYPE_STRING;
     node->var_name = string(yytext);
     yylval = node;
     return STRING;
@@ -1041,28 +1058,28 @@ YY_RULE_SETUP
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 109 "src/main.l"
+#line 126 "src/main.l"
 /* do nothing */
 	YY_BREAK
 case 45:
 /* rule 45 can match eol */
 YY_RULE_SETUP
-#line 111 "src/main.l"
+#line 128 "src/main.l"
 {lineno++;}
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 113 "src/main.l"
+#line 130 "src/main.l"
 {
     cerr << "[line "<< lineno <<" ] unknown character:" << yytext << endl;
 }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 116 "src/main.l"
+#line 133 "src/main.l"
 ECHO;
 	YY_BREAK
-#line 1066 "src/main.l.yy.cpp"
+#line 1083 "src/main.l.yy.cpp"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2030,5 +2047,5 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 116 "src/main.l"
+#line 133 "src/main.l"
 

@@ -3,8 +3,8 @@
 #include "common.h"
 #include "main.tab.h"  // yacc header
 int lineno=1;
-int scope=0;
 
+extern symbol_table symtbl;
 
 %}
 
@@ -57,7 +57,7 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 "==" return EQUAL;
 "!=" return NOTEQUAL;//
 ">" return GREATER;
-"<" {return SMALLER;}
+"<" return SMALLER;
 ">=" return GORE;
 "<=" return SORE;
 "&&" return AND;//
@@ -67,27 +67,43 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 "(" return LPAREN;
 ")" return RPAREN;
 "{" {
-    scope++;
+    TreeNode* node=new TreeNode(lineno,NODE_BLOCK);
+    node->var_name="new code block";
+    yylval=node;
+    int t=symtbl.getsize()-1;
+    if (t<0)
+        t=0;
+    symtbl.scope.push(t);
     return LBRACE;
     }
 "}" {
-    scope--;
+    
+    int pos=symtbl.scope.top();
+    if(pos>0)
+    {
+        string name=symtbl.getname(pos);
+        int token=symtbl.gettoken(name);
+        string type=symtbl.get_type(pos);
+        symtbl.insert(name,token,type);
+        symtbl.setorder(symtbl.getsize()-1,pos);
+        symtbl.scope.pop();
+    }
     return RBRACE;
     }
 
 {INTEGER} {
     //number int
-    TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    TreeNode* node = new TreeNode(lineno, NODE_CONSTINT);
     node->type = TYPE_INT;
-    node->int_val = atoi(yytext);
+    node->attr.vali = atoi(yytext);
     yylval = node;
     return INTEGER;
 }
 
 {CHAR} {
-    TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    TreeNode* node = new TreeNode(lineno, NODE_CONSTCHAR);
     node->type = TYPE_CHAR;
-    node->int_val = yytext[1];
+    node->attr.vali = yytext[1];
     yylval = node;
     return CHAR;
 }
@@ -101,6 +117,7 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 
 {STRING} {
     TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    node->type=TYPE_STRING;
     node->var_name = string(yytext);
     yylval = node;
     return STRING;

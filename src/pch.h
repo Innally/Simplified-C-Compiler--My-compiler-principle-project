@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <ostream>
 #include <string>
 #include <list>
 #include <assert.h>
@@ -19,7 +20,7 @@
 #include <unordered_map>
 #include <iomanip>
 #include <vector>
-
+#include <queue>
 #endif
 
 

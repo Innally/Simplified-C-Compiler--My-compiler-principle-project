@@ -1,9 +1,7 @@
-line:3 name:a scope:1 type:int
-line:5 name:s scope:1 type:int
-line:6 name:ch scope:1 type:char
-line:10 name:a scope:2 type:int
-line:18 name:b scope:3 type:int
-line:20 name:i scope:3 type:int
+ok im heare
+ok im heare
+ok im heare
+ok im heare
 @0 Info: lineno:0 type:program Child: 1 
 @1 Info: lineno:25 type:function Child: 2 3 4 5 6 7 8 9 10 
 @2 Info: lineno:2 type:void Child: 
@@ -92,4 +90,3 @@ line:20 name:i scope:3 type:int
 @85 Info: lineno:20 type:variable Child: 
 @86 Info: lineno:21 type:const Child: 
 @87 Info: lineno:21 type:variable Child: 
-0

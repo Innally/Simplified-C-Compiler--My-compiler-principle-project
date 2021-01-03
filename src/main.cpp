@@ -4,6 +4,7 @@
 extern TreeNode *root;
 extern FILE *yyin;
 extern int yyparse();
+extern symbol_table symtbl;
 
 using namespace std;
 int main(int argc, char *argv[])
@@ -22,16 +23,17 @@ int main(int argc, char *argv[])
     }
     yyparse();
     if(root != NULL) {
+        //print root
         root->genNodeId(0);
         root->printNodeInfo();
+        //print the other node
         root->printAST();
-        map<string,tokeninfo>::iterator it = tokentable.begin();
-        cout<<tokentable.size()<<endl;
-	    while(it != tokentable.end()) {
-		    cout<<it->first<<" ";
-            it->second.print();
-		    it++;
-	    }
+        symtbl.print();
     }
+    ofstream out("test.s",std::ios::out);
+    
+    tree t(root);
+    t.get_label();
+    t.gen_code(out);
     return 0;
 }
