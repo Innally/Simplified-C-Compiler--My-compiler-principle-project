@@ -21,6 +21,7 @@ enum NodeType
     NODE_CONSTCHAR,
     NODE_CONSTSTRING,
 
+    NODE_MAIN,
     NODE_VAR,
     NODE_EXPR,
     NODE_TYPE,
@@ -79,6 +80,7 @@ enum StmtType {
     STMT_SCANF,
     STMT_PRINTF,
     STMT_BLOCK,
+    STMT_ASSIGN
 
 };
 
@@ -103,6 +105,7 @@ public:
     TreeNode* child = nullptr;
     TreeNode* sibling = nullptr;
     Label label;
+    int scopenum;
 
 public:
     OperatorType optype;  // 如果是表达式
@@ -132,7 +135,7 @@ public:
     void L_typecheck();//logical expr check
     void A_typecheck();//arithmetic expr check
     void AS_typecheck(bool);//asign expr check
-
+    void get_temp_var();
 
 public:
     TreeNode(int lineno, NodeType type);
@@ -149,13 +152,14 @@ private:
 	int label_seq = 0;
 
 private:
-	void get_temp_var(TreeNode *t);
-	string new_label(void);  //ok
-	void recursive_get_label(TreeNode *t);//ok
-	void stmt_get_label(TreeNode *t);//ok
-	void expr_get_label(TreeNode *t);//ok
+	string new_label(void);  
+	void recursive_get_label(TreeNode *t);
+	void stmt_get_label(TreeNode *t);
+	void expr_get_label(TreeNode *t);
 	void gen_header(ostream &out);
-	void gen_decl(ostream &out, TreeNode *t);
+	void gen_decl(ostream &out);
+    void gen_rodata(ostream &out);
+    void gen_tempvar(ostream&out);
 	void recursive_gen_code(ostream &out, TreeNode *t);
 	void stmt_gen_code(ostream &out, TreeNode *t);
 	void expr_gen_code(ostream &out, TreeNode *t);

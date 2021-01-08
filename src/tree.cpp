@@ -1,10 +1,7 @@
 #include "tree.h"
-
+#include<unistd.h>
 void TreeNode::addChild(TreeNode* child) {
   
-    // cout<<"add child entered "<<child;cout<<endl;
-    // printSpecialInfo();
-    // cout<<endl;
     if(this->child!=nullptr)
         this->child->addSibling(child);
     else
@@ -14,17 +11,9 @@ void TreeNode::addChild(TreeNode* child) {
 }
 
 void TreeNode::addSibling(TreeNode* sibling){
-    //cout<<"add sibling entered "<<sibling;cout<<endl;
-    //printSpecialInfo();
-    //cout<<endl;
     TreeNode* t=this;
-    int i=0;
     while(t->sibling)
     {
-        i++;
-        if(i>10)
-            break;
-        //cout<<t<<endl;
         t=t->sibling;
     }
     t->sibling=sibling;
@@ -35,10 +24,6 @@ TreeNode::TreeNode(int lineno, NodeType type) {
     this->lineno=lineno;
     this->nodeType=type;
     negative=0;
-    //cout<<"new node created"<< this;
-    //printSpecialInfo();
-    //cout<<endl;
-    
 }
 
 int TreeNode::genNodeId(int lastnodeid) {
@@ -47,7 +32,7 @@ int TreeNode::genNodeId(int lastnodeid) {
     
     if(i==nullptr)
         return lastnodeid;
-    do{
+    do{        
         i->nodeID=++lastnodeid;
         Q.push(i);
         i=i->sibling;
@@ -66,6 +51,7 @@ int TreeNode::genNodeId(int lastnodeid) {
 void TreeNode::printNodeInfo() {
     cout<<"@"<<nodeID<<" ";
     cout<<"Info: lineno:"<<lineno<<" type:";
+    cout<<opType2String(this->optype)<< " ";
     this->printSpecialInfo();
     cout<<" ";
     cout<<"Child: ";
@@ -109,7 +95,7 @@ void TreeNode::printAST() {
 }
 
 
-// You can output more info...
+// You can coutput more info...
 void TreeNode::printSpecialInfo() {
     switch(this->nodeType){
         case NODE_CONSTINT:
@@ -144,6 +130,9 @@ void TreeNode::printSpecialInfo() {
             break;
         case NODE_BLOCK:
             cout<<"block";
+            break;
+        case NODE_MAIN:
+            cout<<"main";
         default:
             break;
     }
@@ -298,7 +287,9 @@ void TreeNode::A_typecheck()
     if(this->negative)
     {
         if(this->nodeType==NODE_CONSTINT)
-            return;
+            {
+                return;
+            }
         int index=symtbl.lookup(this->var_name);
         if(index<-1)
             index+=2048;
@@ -397,28 +388,39 @@ void TreeNode::AS_typecheck(bool unary)
             t2=symtbl.get_type(pos2);
         }
         if(t1!=t2)
-            cerr<<child1->var_name<<" and "<<child2->var_name<<" are of diffrent type, can't do this assign operation at line "<<lineno<<endl;      
+            ;//cerr<<child1->var_name<<" and "<<child2->var_name<<" are of diffrent type, can't do this assign operation at line "<<lineno<<endl;      
     }
     
 }
 
 
-void tree::get_temp_var(TreeNode *t)
+void TreeNode::get_temp_var()
 {
-	if (t->nodeType != NODE_EXPR)
+    if(this->nodeType==NODE_CONSTINT&&this->stype==STMT_DECL)
+    {
+        this->temp_var = symtbl.temp_var;
+	    symtbl.temp_var++;
+        if(symtbl.temp_var>symtbl.max_temp_var)
+            symtbl.max_temp_var=symtbl.temp_var;
+        return;
+    }
+	if (this->nodeType != NODE_EXPR&&this->nodeType!=NODE_OP)
 		return;
-	if (t->optype < OP_ASSIGN || t->optype > OP_EQUAL)
+	if (this->optype < OP_ASSIGN || this->optype > OP_EQUAL)
 		return;
-
-	TreeNode *arg1 = t->child;
-	TreeNode *arg2 = arg1->sibling;
-
-	if (arg1->nodeType == NODE_EXPR)
-		tree::temp_var_seq--;
-	if (arg2 && arg2->nodeType == NODE_EXPR)
-		tree::temp_var_seq--;
-	t->temp_var = tree::temp_var_seq;
-	tree::temp_var_seq++;
+	TreeNode *arg1 = this->child;
+	TreeNode *arg2;
+    if(arg1->sibling!=nullptr)
+        {arg2=arg1->sibling;}
+    
+	if (arg1->nodeType == NODE_EXPR ||arg1->nodeType == NODE_OP)
+		symtbl.temp_var--;
+	if ((arg1 && arg2 && arg2->nodeType == NODE_EXPR)||(arg1&& arg2 && arg2->nodeType == NODE_OP))
+		symtbl.temp_var--;
+	this->temp_var = symtbl.temp_var;
+	symtbl.temp_var++;
+    if(symtbl.temp_var>symtbl.max_temp_var)
+        symtbl.max_temp_var=symtbl.temp_var;
 }
 
 
@@ -485,18 +487,20 @@ void tree::stmt_get_label(TreeNode *t)
 
             if (t->label.begin_label == "")
 				t->label.begin_label = new_label();
-
-            then->label.begin_label=cdt->label.true_label=new_label();//if cdt is true then goto then
-
-            if(el)
-                el->label.begin_label=cdt->label.false_label=new_label();// if cdt is false then goto else
-
             if(t->label.next_label == "")
                 t->label.next_label=new_label();
-            
+            then->label.begin_label=cdt->label.true_label=new_label();//if cdt is true then goto then
+
+            if(el)//if else exist
+                {
+                    el->label.begin_label=cdt->label.false_label=new_label();// if cdt is false then goto else
+                    el->label.next_label=t->label.next_label;
+                }
+            else{//no else
+                cdt->label.false_label=t->label.next_label;
+            }
             if(t->sibling)
                 t->sibling->label.begin_label=t->label.next_label;
-
             recursive_get_label(cdt);
             recursive_get_label(then);
             if(el)
@@ -515,7 +519,7 @@ void tree::stmt_get_label(TreeNode *t)
                 t->label.begin_label=new_label();
 
             blcok->label.next_label=t->label.begin_label;
-            blcok->label.begin_label=cdt->label.true_label;
+            blcok->label.begin_label=cdt->label.true_label=new_label();
 
             if(t->label.next_label=="")
                 t->label.next_label=new_label();
@@ -539,10 +543,9 @@ void tree::stmt_get_label(TreeNode *t)
         break;
     default:
         break;
-
 	}
-
-    
+    if(t->sibling)
+        recursive_get_label(t->sibling);
 }
 
 string tree::new_label(void)
@@ -550,7 +553,7 @@ string tree::new_label(void)
     //get a new lable from label_seq,and label_seq++;
 	char tmp[20];
 
-	sprintf(tmp, "@%d", tree::label_seq);
+	sprintf(tmp, "l%d", tree::label_seq);
 	tree::label_seq++;
 	return tmp;
 }
@@ -558,196 +561,322 @@ string tree::new_label(void)
 void tree::recursive_get_label(TreeNode *t)
 {
 	if (t->nodeType == NODE_STMT)
-		stmt_get_label(t);
-	else if (t->nodeType == NODE_EXPR)
+		{stmt_get_label(t);}
+	else if (t->nodeType == NODE_EXPR|| t->nodeType==NODE_OP)
 		expr_get_label(t);
+    else if(t->nodeType==NODE_FUNCTION|| t->nodeType==NODE_MAIN)
+        {recursive_get_label(t->child->sibling->sibling->sibling);}
+    else if(t->nodeType==NODE_PROG||t->nodeType==NODE_BLOCK)
+        {recursive_get_label(t->child);}
+
 }
 
 void tree::expr_get_label(TreeNode *t)
 {
-	if (t->type != TYPE_BOOL)// if it's not boolean expr then recursive labeling ends
-		return;
 	TreeNode *e1 = t->child;
 	TreeNode *e2 = e1->sibling;
+	if (t->type->getTypeInfo() != "bool")// if it's not boolean expr then recursive labeling ends
+		{
+            return;
+        }
 	switch (t->optype)
 	{
 	case OP_AND:
 		e1->label.true_label = new_label();
+        if(t->label.false_label=="")
+            t->label.false_label=new_label();
+        e2->label.begin_label=e1->label.true_label;
 		e2->label.true_label = t->label.true_label;
 		e1->label.false_label = e2->label.false_label = t->label.false_label;
 		break;
 	case OP_OR:
         e1->label.true_label=e2->label.true_label=t->label.true_label;
         e1->label.false_label=new_label();
+        e2->label.begin_label=e1->label.false_label;
         e2->label.false_label=t->label.false_label;
 		break;
 
     case OP_NOT:
         {  
             e1->label.true_label=t->label.false_label;
-            e1->label.true_label=t->label.true_label;
+            e1->label.false_label=t->label.true_label;
         }
         break;
-    // case OP_EQUAL:
-    //         // true entry = t-> entry, false entry the same
-	// 	break;
-    // case OP_NOTEQUAL:
-    //         // same as eaqual
-	// 	break;
-	// case OP_GREATER:
-    //         //same as before
-	// 	break;
-    // case OP_GORE:
-    //     //same
-	// 	break;
-	// case OP_SMALLER:
-    //     //same
-	// 	break;
-	// case OP_SORE:
-    //     {
-
-    //     }
-	// 	break;
     default:
         break;
         /* ... */
 	}
     //if it's not logical
-	if (e1)
+	if (e1){
 		recursive_get_label(e1);
+    }
 	if (e2)
+    {
 		recursive_get_label(e2);
+    }
 }
 
 //-----------------------generate code.------------------
 void tree::gen_header(ostream &out)
 {
-	out << "# your asm code header here" << endl;
+	cout << "# your asm code header here" << endl;
 	/*your code here*/
 }
 
 void tree::gen_code(ostream &out)
 {
-	gen_header(out);
-	TreeNode *p = root->child;
-	if (p->stype == STMT_DECL)
-		gen_decl(out, p);
-    out << endl << endl << "# your asm code here" << endl;
-	out << "\t.text" << endl;
-    out << "\t.globl _start" << endl;
-	recursive_gen_code(out, root);
+	gen_header(cout);
+
+	gen_decl(cout);//declaraiton
+    gen_tempvar(cout);
+    gen_rodata(cout);//rodata
+
+    cout << endl << endl << "# your asm code here" << endl;
+	cout << "\t.text" << endl;
+    cout << "\t.globl main" << endl;
+    cout<<"\t.type main, @function"<<endl;
+	recursive_gen_code(cout, root);
 	if (root->label.next_label != "")
-		out << root->label.next_label << ":" << endl;
-	out << "\tret" << endl;
+		cout << root->label.next_label << ":" << endl;
+	// cout << "\tret" << endl;
 }
 
-void tree::gen_decl(ostream &out,TreeNode *t)
-{
-    cout<<"get in ge_decl"<<endl;
-    out << endl << "# define your veriables and temp veriables here" << endl;
-	out << "\t.bss" << endl;
-	for (; t && t->stype == STMT_DECL; t = t->sibling)
-	{
-        cout<<"re"<<endl;
-		for (TreeNode *p = t->child; p; p = p->sibling)
-		{   
-            cout<<p->nodeID<<" ";
-            cout<<p->var_name<<endl;;
-            if (symtbl.get_type(symtbl.lookup(p->var_name)) == "int")
-			{
-                cout<<"int"<<endl;
-                out << "_" << symtbl.getname(p->attr.symtbl_seq) << ":" << endl;
-                out << "\t.zero\t4" << endl;
-                out << "\t.align\t4" << endl;
-            }
-            // if(p->type== TYPE_CHAR)
-            // {
-            //     out << "_" << symtbl.getname(p->attr.symtbl_seq) << ":" << endl;
-            //     out << "\t.zero\t4" << endl;
-            //     out << "\t.align\t4" << endl;
+ void tree::gen_tempvar(ostream&out)
+ {
+     for(int i=0;i<symtbl.max_temp_var;i++)
+     {
+        cout<<"t"<<i<<":"<<endl;
+        cout << "\t.zero\t4" << endl;
+        cout << "\t.align\t4" << endl;
+     }
+ }
 
-            // }
+
+void tree::gen_decl(ostream &out)
+{
+    cout << endl << "# define your veriables and temp veriables here" << endl;
+	cout << "\t.bss" << endl;
+
+    int size=symtbl.getsize();
+    int count=-1;
+    int i=0;
+    do
+    {    
+        if(symtbl.getorder(i)>count)// if this item on the table is the right order
+        {
+            if(symtbl.get_type(i)=="int"||symtbl.get_type(i)=="char")
+            {
+                cout << "_" << symtbl.getname(i)<<symtbl.get_sconum(i) << ":" << endl;
+                cout << "\t.zero\t4" << endl;
+                cout << "\t.align\t4" << endl;
+                count=i;
+            }
         }
-	}
-	for (int i = 0; i < temp_var_seq; i++)
-	{
-		out << "t" <<  i << ":" << endl;
-        out << "\t.zero\t4" << endl;
-        out << "\t.align\t4" << endl;
-	}
+        i++;
+    }while(i<size);
+    
+}
+
+void tree::gen_rodata(ostream &out)
+{
+    cout << endl << "# define your const string here" << endl;
+	cout << "\t.section\t.rodata" << endl;
+    cout<<"FORMAT:\n"<<"\t.asciz \"%s\\n\""<<endl;
+
+    int rosize=symtbl.getrosize();
+    for(int i=0;i<rosize;i++)
+    {
+        cout<<"STR"<<i<<":"<<endl;
+        cout<<"\t.asciz "<<symtbl.getrodata(i)<<endl;
+    }
+
 }
 
 
 void tree::recursive_gen_code(ostream &out, TreeNode *t)
 {
-	if (t->nodeType == NODE_STMT)
+    if(t==nullptr)
+        return;
+	else if (t->nodeType == NODE_STMT)
 	{
-		stmt_gen_code(out, t);
+		stmt_gen_code(cout, t);
 	}
-	else if (t->nodeType == NODE_EXPR  )
+	else if (t->nodeType == NODE_EXPR ||t->nodeType==NODE_OP)
 	{
-		expr_gen_code(out, t);
+		expr_gen_code(cout, t);
 	}
+    else if (t->nodeType == NODE_BLOCK)
+    {
+        stmt_gen_code(cout,t);
+    }
+    else if(t->nodeType == NODE_FUNCTION||t->nodeType == NODE_MAIN)
+    {
+        stmt_gen_code(cout,t);
+    }
+    else if (t->nodeType == NODE_PROG)
+    {
+        TreeNode *temp=t->child;
+        while(temp)
+        {
+            recursive_gen_code(cout,temp);
+            temp=temp->sibling;
+        }
+    }
 }
 
 void tree::stmt_gen_code(ostream &out, TreeNode *t)
 {
+    if(t->stype==STMT_ASSIGN)
+    {
+        expr_gen_code(cout,t);
+        return;
+    }
+    if(t->nodeType==NODE_MAIN)
+    {
+        cout<<"main:"<<endl;
+        recursive_gen_code(cout,t->child->sibling->sibling->sibling);
+    }
 	if (t->stype == STMT_BLOCK)// iterate every node of the tree
 	{
-        cout<<"block"<<endl;
         TreeNode* iter;
 		for (iter=t->child ; iter; iter=iter->sibling)
 		{
-			recursive_gen_code(out, iter);
-			for (TreeNode *p = iter->sibling; p; p = p->sibling)
-				recursive_gen_code(out, p);
+			recursive_gen_code(cout, iter);
+			// for (TreeNode *p = iter->sibling; p; p = p->sibling)
+			// 	recursive_gen_code(cout, p);
 		}
 	}
 	if (t->stype == STMT_WHILE)
 	{
 		if (t->label.begin_label != "")
-			out << t->label.begin_label << ":" << endl;
-		recursive_gen_code(out, t->child);
-		recursive_gen_code(out, t->child->sibling);
-		out << "\tjmp " << t->label.begin_label << endl;
+			cout << t->label.begin_label << ":" << endl;
+		recursive_gen_code(cout, t->child);
+        cout<<t->child->label.true_label<<":"<<endl;
+		recursive_gen_code(cout, t->child->sibling);
+		cout << "\tjmp " << t->label.begin_label << endl;
+        cout<<t->label.next_label<<":"<<endl;
 	}
 	else if (t->stype == STMT_PRINTF)
 	{
-		
-
-	}
+        TreeNode* child=t->child;
+		stack<TreeNode*> s;
+        while(child)
+        {
+            s.push(child);
+            child=child->sibling;
+        }
+        bool f=0;// if there is only string ,no parameter flag
+        int ssize=s.size();
+        if(ssize==1)
+            f=1;
+        while(s.size()>1)
+        {
+            string varname=s.top()->var_name;
+            int pos=symtbl.lookup(varname);
+            if(pos<-1)
+                pos+=2048;
+            cout<<"\tpushl _"<<varname<<symtbl.get_sconum(pos)<<endl;
+            s.pop();
+	    }
+        if(f)
+        {
+            if(t->nodeType==NODE_VAR)
+                cout<<"\tpushl $"<<"FORMAT"<<endl;
+        }
+        int roseq=symtbl.getroseq(t->child->attr.symtbl_seq);
+        cout<<"\tpushl $"<<"STR"<<roseq<<endl;
+        cout<<"\tcall printf"<<endl;
+        cout<<"\taddl $"<<ssize*4<<" ,%esp "<<endl;
+        //recursive_gen_code(cout,t->sibling);
+    }
     else if(t->stype==STMT_SCANF)
     {
-        /* code */
+        if (t->label.begin_label!=""){
+            cout<<t->label.begin_label<<":"<<endl;
+        }
+        TreeNode*str=t->child;
+        TreeNode*curr=str->sibling;
+        //遍历获取输入变量个数，据此决定栈空间大小
+        int idcount=0;
+        while(curr !=nullptr )
+        {
+            idcount++ ;
+            cout<<"\tleal _" <<curr->var_name<<symtbl.get_sconum(symtbl.findout(curr->var_name))<<" ,%eax" <<endl ;
+            cout<<"\tpushl %eax" <<endl;
+            curr=curr->sibling;
+        }
+        int roseq=symtbl.getroseq(str->attr.symtbl_seq);
+        //cout<<"scanf "<<str->var_name<<roseq<<endl;
+        cout<<"\tpushl $STR"<<roseq<<endl;
+        cout<<"\tcall scanf" <<endl;
+        cout<<"\taddl $"<<4* (idcount+1)<<" , %esp"<<endl;
     }
-    // else if(t->stype==STMT_DECL)
-    // {
-    //     /* code */
-    // }
+    else if(t->stype==STMT_DECL)
+    {
+        TreeNode* e2=t->child->sibling->sibling;
+        if(e2!=nullptr)
+        {
+            TreeNode* e1=t->child->sibling;
+            recursive_gen_code(cout,e2);
+            cout << "\tmovl ";
+            if (e2->nodeType == NODE_VAR)
+                {
+                    cout << "_" << e2->var_name<<symtbl.get_sconum(symtbl.findout(e2->var_name));
+                }
+            else if (e2->nodeType == NODE_CONSTINT)
+                cout <<"$"<< e2->attr.vali;
+            else cout << "t" << e2->temp_var;
+            cout << ", %eax"<<endl ;
+            cout<<"\tmovl %eax,";
+            if (e1->nodeType == NODE_VAR)// ID
+                cout << "_" << e1->var_name<<symtbl.get_sconum(symtbl.findout(e1->var_name));
+            else if (e1->nodeType == NODE_CONSTINT)// CONST INT
+                cout <<"$" << e1->attr.vali;
+            else cout << "t" << e1->temp_var;// A TEMP RESULT
+            cout<<endl;
+
+        }
+    }
     else if(t->stype==STMT_IF)
     {
         if (t->label.begin_label != "")
-			out << t->label.begin_label << ":" << endl;
-		recursive_gen_code(out, t->child);
-		recursive_gen_code(out, t->child->sibling);
+			cout << t->label.begin_label << ":" << endl;
+        recursive_gen_code(cout, t->child);//
+		cout << t->child->label.true_label << ":" << endl;//true lable
+		recursive_gen_code(cout, t->child->sibling);
+        cout<<"\tjmp "<<t->label.next_label<<endl;
+        cout << t->child->label.false_label << ":" << endl;//false LABLE
+        if(t->child->sibling->sibling)
+        {
+            recursive_gen_code(cout,t->child->sibling->sibling);
+            cout<<t->label.next_label<<":"<<endl;
+        }
     }
     else if(t->stype==STMT_FOR)
     {
+        recursive_gen_code(cout, t->child);
         if (t->label.begin_label != "")
-			out << t->label.begin_label << ":" << endl;
-		recursive_gen_code(out, t->child);
-		recursive_gen_code(out, t->child->sibling);
-        recursive_gen_code(out,t->child->sibling->sibling);
-        out << "\tjmp " << t->label.begin_label << endl;
+			cout << t->label.begin_label << ":" << endl;
+		recursive_gen_code(cout, t->child->sibling);
+        cout<<t->child->sibling->label.true_label<<":"<<endl;
+        recursive_gen_code(cout,t->child->sibling->sibling);
+        recursive_gen_code(cout,t->child->sibling->sibling->sibling);
+        cout << "\tjmp " << t->label.begin_label << endl;
+        cout<<t->label.next_label<<":"<<endl;
 
     }
 
     else if(t->stype==STMT_RETURN)
     {
         if(t->label.begin_label!="")
-                out<<t->label.begin_label<<":"<<endl;
-        recursive_gen_code(out,t->child);
-        out << "\tret " ;
+                cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,t->child);
+        cout << "\tret "<<endl ;
+    }
+    else if(t->optype==OP_ASSIGN)
+    {
+        expr_gen_code(cout,t);
+        //recursive_gen_code(cout,t->sibling);
     }
     /* ... */
 }
@@ -755,314 +884,1025 @@ void tree::stmt_gen_code(ostream &out, TreeNode *t)
 
 void tree::expr_gen_code(ostream &out, TreeNode *t)
 {
+
 	TreeNode *e1 = t->child;
 	TreeNode *e2 = e1->sibling;
+    string truelable=e1->label.false_label;
+    string name1=e1->var_name;
+    string name2;
+    if(e2)
+        {name2=e2->var_name;}
 	switch (t->optype)
 	{
-	case OP_ASSIGN:
-        cout<<"assign";
-        out << "\tmovel $";
-		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", " << endl;
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
+    case OP_ASSIGN://
+        recursive_gen_code(cout,e2);
+        if(e2->nodeType==NODE_CONSTCHAR)
+        {
+            cout<<"\tmovl $"<<e2->attr.vali<<",_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+        }
+        else{
+            if(e2->negative )
+                {
+                    if(e2->nodeType==NODE_VAR)
+                    {
+                        cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                        cout<<"\tnegl %ecx"<<endl;
+                        cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                    }
+                    else if(e2->nodeType!=NODE_CONSTINT)
+                    {
+                        cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                        cout<<"\tnegl %ecx"<<endl;
+                        cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                    }
+                }
+                cout << "\tmovl ";
+                if (e2->nodeType == NODE_VAR)
+                    {
+                        cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
+                    }
+                else if (e2->nodeType == NODE_CONSTINT)
+                {
+                    cout <<"$" ;
+                    if(e2->negative==1)
+                        cout<<"-";
+                    cout<< e2->attr.vali;
+                }
+                else cout << "t" << e2->temp_var;
+                cout << ", %eax"<<endl ;
+                cout<<"\tmovl %eax,";
+                if (e1->nodeType == NODE_VAR)// ID
+                    cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+                else if (e1->nodeType == NODE_CONSTINT)
+                {
+                    cout <<"$" ;
+                    if(e1->negative==1)
+                        cout<<"-";
+                    cout<< e1->attr.vali;
+                }
+                else cout << "t" << e1->temp_var;// A TEMP RESULT
+                cout<<endl;
+                if(t->nodeType==NODE_EXPR)
+                    {cout<<"\tmovl %eax"<<",t"<<t->temp_var<<endl;}
+                if(e2->negative )
+                {
+                    if(e2->nodeType==NODE_VAR)
+                    {
+                        cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                        cout<<"\tnegl %ecx"<<endl;
+                        cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                    }
+                    else if(e2->nodeType!=NODE_CONSTINT)
+                    {
+                        cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                        cout<<"\tnegl %ecx"<<endl;
+                        cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                    }
+                }
+        }
 		break;
 
-	case OP_ADD:
-		out << "\tmovl $";
+	case OP_ADD://
+        // if(t->child->nodeType==NODE_EXPR)
+        recursive_gen_code(cout,e1);
+        if(e1->negative)
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+		cout << "\tmovl ";
 		if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-		out << ", %eax" <<endl;
-		out << "\taddl $";
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+        else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+		cout << ", %eax" <<endl;
+		cout << "\taddl ";
 		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %eax, $t" << t->temp_var << endl;
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
+        else if (e2->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;
+		cout << ", %eax" << endl;
+		cout << "\tmovl %eax, t" << t->temp_var << endl;
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        if(e1->negative)
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+
 		break;
-    case OP_AND:
-        out << "\tmovel $";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out<<"\tcompl %eax,0"<<endl;
-        out<<"\tje "<<t->label.false_label<<endl;//if the first expr is not true, then jmp to false
-        out << "\tmovel $";
-		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-        out<<"\tcompl %eax,0"<<endl;
-        out<<"\tje "<<t->label.false_label<<endl;//if the second expr is not true, then jmp to false
-        out<<"\tjmp "<<t->label.true_label<<endl;// i they both true, then goto true
+    case OP_AND://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        // cout << "\tmovl ";
+        // if (e1->nodeType == NODE_VAR)// ID
+		// 	cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+		// else if (e1->nodeType == NODE_CONSTINT)// CONST INT
+        // 	cout <<"$" << e1->attr.vali;
+		// else cout << "t" << e1->temp_var;// A TEMP RESULT
+        // cout << ", %eax" <<endl;
+        // cout<<"\tcompl %eax,0"<<endl;
+        // cout<<"\tje "<<t->label.false_label<<endl;//if the first expr is not true, then jmp to false
+        // cout<<"\tjmp "<<e1->label.true_label<<endl;
+        recursive_gen_code(cout,e2);
+        // cout << "\tmovl ";
+		// if (e2->nodeType == NODE_VAR)
+		// 	cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name2));
+		// else if (e2->nodeType == NODE_CONSTINT)
+		// 	cout <<"$" << e2->attr.vali;
+		// else cout << "t" << e2->temp_var;
+		// cout << ", %eax" << endl;
+        // cout<<"\tcompl %eax,0"<<endl;
+        // cout<<"\tje "<<t->label.false_label<<endl;//if the second expr is not true, then jmp to false
+        // cout<<"\tjmp "<<t->label.true_label<<endl;// i they both true, then goto true
         break;
-	case OP_ADDADD:
-        out<<"\tincl &";
+	case OP_ADDADD://
+        cout<<"\tincl ";
         if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out<<endl;
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+        cout<<endl;
 		break;
-    case OP_ADDSELF:
-        out << "\tmovel $";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out << "\taddl &";
-		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %eax, $t" << t->temp_var << endl;
+    case OP_ADDSELF://
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        cout << "\tmovl ";
+        if (e2->nodeType == NODE_VAR)
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
+	    else if (e2->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;// A TEMP RESULT
+        cout << ", %eax" <<endl;
+        cout << "\taddl ";
+		cout << "%eax,";
+        if (e1->nodeType == NODE_VAR)
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+        else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;
+        cout << endl;
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+
 		break;
-    case OP_DIV:
-         out << "\tmovel $";
+    case OP_DIV://
+        recursive_gen_code(cout,e1);
+        if(e1->negative )
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+         cout << "\tmovl ";
         if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out << "\tidivl &";
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+		else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+        cout << ", %eax" <<endl;
+        cout<<"\tcltd\n";
+        cout<<"\tmovl ";
 		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
 		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %eax, $t" << t->temp_var << endl;
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;
+		cout << ", %ecx" << endl;
+        cout << "\tidivl %ecx\n ";
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        if(e1->negative)
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+
+		cout << "\tmovl %eax, t" << t->temp_var << endl;
+
 		break;
     case OP_EQUAL://////////////////
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", " ;
-		if (e1->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)
-			out << e1->attr.vali;
-		else out << "t" << e1->temp_var;
-		out <<"\tje "<<t->label.true_label << endl;
-        out <<"\tjmp "<<t->label.false_label<<endl;
-		break;
-    case OP_GORE:
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", " ;
-		if (e1->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)
-			out << e1->attr.vali;
-		else out << "t" << e1->temp_var;
-		out <<"\tjge "<<t->label.true_label << endl;
-        out <<"\tjmp "<<t->label.false_label<<endl;
-		break;
-    case OP_GREATER:
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", " ;
-		if (e1->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)
-			out << e1->attr.vali;
-		else out << "t" << e1->temp_var;
-		out <<"\tjg "<<t->label.true_label << endl;
-        out <<"\tjmp "<<t->label.false_label<<endl;
-
-		break;
-    case OP_MINUS:
-        out << "\tmovel $";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out << "\tsubl &";
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        recursive_gen_code(cout,e2);
+        ////////////////////////////////////////////////////////////////////
+        cout<<"\t";
 		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
+			{
+                cout << "movl _" << name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ebx";
+
+            }
 		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %eax, $t" << t->temp_var << endl;
-		break;
-    case OP_MINUSMINUS:
-        out<<"\tincl &";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out<<endl;
+			{
+                cout<<"movl $";
+                if(e2->negative==1)
+                    cout<<"-";
+                cout<<e2->attr.vali<<",%ebx";
+
+            }
+		else {
+
+            cout << "movl t" << e2->temp_var<<",%ebx";
+        }
+        cout<<endl;
+        ///////////////////////////////////////////////////
+        if (e1->nodeType == NODE_VAR)
+			{
+                cout << "\tmovl _" << name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%eax";
+
+            }
+		else if (e1->nodeType == NODE_CONSTINT)
+			{
+                cout<<"\tmovl $";
+                if(e1->negative==1)
+                    cout<<"-";
+                cout<<e1->attr.vali<<",%eax"<<endl;
+            }
+		else {
+
+            cout << "movl t" << e1->temp_var<<",%eax";
+        }
+        cout << "\n\tcmpl %ebx,%eax";
+		cout <<"\n\tje "<<t->label.true_label << endl;
+        cout <<"\tjmp "<<t->label.false_label<<endl;
 		break;
 
-    case OP_MINUSSELF:
-        out << "\tmovel $";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out << "\tsubl &";
+
+
+    case OP_GORE://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        recursive_gen_code(cout,e2);
+        ////////////////////////////////////////////////////////////////////
+        cout<<"\t";
 		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
+			{
+                cout << "movl _" << name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ebx";
+
+            }
 		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %eax, $t" << t->temp_var << endl;
+			{
+                cout<<"movl $";
+                if(e2->negative==1)
+                    cout<<"-";
+                cout<<e2->attr.vali<<",%ebx";
+
+            }
+		else {
+
+            cout << "movl t" << e2->temp_var<<",%ebx";
+        }
+        cout<<endl;
+        ///////////////////////////////////////////////////
+        if (e1->nodeType == NODE_VAR)
+			{
+                cout << "\tmovl _" << name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%eax";
+
+            }
+		else if (e1->nodeType == NODE_CONSTINT)
+			{
+                cout<<"\tmovl $";
+                if(e1->negative==1)
+                    cout<<"-";
+                cout<<e1->attr.vali<<",%eax"<<endl;
+            }
+		else {
+
+            cout << "movl t" << e1->temp_var<<",%eax";
+        }
+        cout << "\n\tcmpl %ebx,%eax";
+		cout <<"\n\tjge "<<t->label.true_label << endl;
+        cout <<"\tjmp "<<t->label.false_label<<endl;
+		break;
+
+
+    case OP_GREATER://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        recursive_gen_code(cout,e2);
+        ////////////////////////////////////////////////////////////////////
+        cout<<"\t";
+		if (e2->nodeType == NODE_VAR)
+			{
+                cout << "movl _" << name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ebx";
+
+            }
+		else if (e2->nodeType == NODE_CONSTINT)
+			{
+                cout<<"movl $";
+                if(e2->negative==1)
+                    cout<<"-";
+                cout<<e2->attr.vali<<",%ebx";
+
+            }
+		else {
+
+            cout << "movl t" << e2->temp_var<<",%ebx";
+        }
+        cout<<endl;
+        ///////////////////////////////////////////////////
+        if (e1->nodeType == NODE_VAR)
+			{
+                cout << "\tmovl _" << name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%eax";
+
+            }
+		else if (e1->nodeType == NODE_CONSTINT)
+			{
+                cout<<"\tmovl $";
+                if(e1->negative==1)
+                    cout<<"-";
+                cout<<e1->attr.vali<<",%eax"<<endl;
+            }
+		else {
+
+            cout << "movl t" << e1->temp_var<<",%eax";
+        }
+        cout << "\n\tcmpl %ebx,%eax";
+		cout <<"\n\tjg "<<t->label.true_label << endl;
+        cout <<"\tjmp "<<t->label.false_label<<endl;
+
+		break;
+
+
+    case OP_MINUS://
+        recursive_gen_code(cout,e1);
+        if(e1->negative )
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        cout << "\tmovl ";
+        if (e1->nodeType == NODE_VAR)// ID
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+		else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+        cout << ", %eax" <<endl;
+        cout << "\tsubl ";
+		if (e2->nodeType == NODE_VAR)
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
+		else if (e2->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;
+		cout << ", %eax" << endl;
+		cout << "\tmovl %eax, t" << t->temp_var << endl;
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        if(e1->negative)
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+
         break;
 
-    case OP_MOD:
-        out << "\tmovel $";
+
+    case OP_MINUSMINUS://
+        cout<<"\tdecl ";
         if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out << "\tidivl &";
-		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %ebx, $t" << t->temp_var << endl;//ebx is the remainder
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+        cout<<endl;
 		break;
-    case OP_MULT:
-         out << "\tmovel $";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out << "\timull &";
-		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
+
+
+
+    case OP_MINUSSELF://
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        cout << "\tmovl ";
+        if (e2->nodeType == NODE_VAR)// ID
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
 		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-		out << "\tmovl %eax, $t" << t->temp_var << endl;
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;// A TEMP RESULT
+        cout << ", %eax" <<endl;
+        cout << "\tsubl ";
+		cout << "%eax,";
+        if (e1->nodeType == NODE_VAR)
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+        else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;
+        cout << endl;
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        break;
+
+    case OP_MOD://
+        recursive_gen_code(cout,e1);
+        if(e1->negative )
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+         cout << "\tmovl ";
+        if (e1->nodeType == NODE_VAR)// ID
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+        else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+        cout << ", %eax" <<endl;
+        cout<<"\tcltd\n";
+        cout<<"\tmovl ";
+		if (e2->nodeType == NODE_VAR)
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
+        else if (e2->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;
+		cout << ", %ecx" << endl;
+        cout << "\tidivl %ecx\n ";
+                if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        if(e1->negative)
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+
+		cout << "\tmovl %edx, t" << t->temp_var << endl;
+
+		break;
+    case OP_MULT://
+        recursive_gen_code(cout,e1);
+        if(e1->negative )
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+        recursive_gen_code(cout,e2);
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+         cout << "\tmovl ";
+        if (e1->nodeType == NODE_VAR)// ID
+			cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+        else if (e1->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e1->negative==1)
+                cout<<"-";
+            cout<< e1->attr.vali;
+        }
+		else cout << "t" << e1->temp_var;// A TEMP RESULT
+        cout << ", %eax" <<endl;
+        cout << "\timull ";
+		if (e2->nodeType == NODE_VAR)
+			cout << "_" << name2<<symtbl.get_sconum(symtbl.findout(name2));
+        else if (e2->nodeType == NODE_CONSTINT)
+		{
+            cout <<"$" ;
+            if(e2->negative==1)
+                cout<<"-";
+            cout<< e2->attr.vali;
+        }
+		else cout << "t" << e2->temp_var;
+		cout << ", %eax" << endl;
+		cout << "\tmovl %eax, t" << t->temp_var << endl;
+        if(e2->negative )
+            {
+                if(e2->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name2<<symtbl.get_sconum(symtbl.findout(name2))<<endl;
+                }
+                else if(e2->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e2->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e2->temp_var<<endl;
+                }
+            }
+        if(e1->negative)
+            {
+                if(e1->nodeType==NODE_VAR)
+                {
+                    cout<<"\tmovl _"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,_"<<name1<<symtbl.get_sconum(symtbl.findout(name1))<<endl;
+                }
+                else if(e1->nodeType!=NODE_CONSTINT)
+                {
+                    cout<<"\tmovl t"<<e1->temp_var<<",%ecx"<<endl;
+                    cout<<"\tnegl %ecx"<<endl;
+                    cout<<"\tmovl %ecx,t"<<e1->temp_var<<endl;
+                }
+            }
+
 		break;
     case OP_NOT:
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", 1" ;
-		out <<"\tje "<<t->label.false_label << endl;
-        out <<"\tjmp "<<t->label.true_label<<endl;
-
-		break;
-    case OP_NOTEQUAL:
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", " ;
-		if (e1->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)
-			out << e1->attr.vali;
-		else out << "t" << e1->temp_var;
-		out <<"\tje "<<t->label.false_label << endl;
-        out <<"\tjmp "<<t->label.true_label<<endl;
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        e1->label.false_label=t->label.true_label;
+        e1->label.true_label=t->label.false_label;
+        recursive_gen_code(cout,e1);
 		break;
 
-    case OP_OR:
-        out << "\tmovel $";
-        if (e1->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e1->attr.vali;
-		else out << "t" << e1->temp_var;// A TEMP RESULT
-        out << ", %eax" <<endl;
-        out<<"\tcompl %eax,0"<<endl;
-        out<<"\tjne "<<t->label.false_label<<endl;//if the first expr is true, then jmp to ture lable
-        out<<"\tjmp "<<t->label.true_label<<endl;
-        out << "\tmovel $";
+    case OP_NOTEQUAL://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        recursive_gen_code(cout,e2);
+        ////////////////////////////////////////////////////////////////////
+        cout<<"\t";
 		if (e2->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)
-			out << e2->attr.vali;
-		else out << "t" << e2->temp_var;
-		out << ", %eax" << endl;
-        out<<"\tcompl %eax,0"<<endl;
-        out<<"\tjne "<<t->label.true_label<<endl;//if the second expr is not true, then jmp to false
-        out<<"\tjmp "<<t->label.false_label<<endl;// i they both true, then goto true
-		break;
-    case OP_SMALLER:
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", " ;
-		if (e1->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)
-			out << e1->attr.vali;
-		else out << "t" << e1->temp_var;
-		out <<"\tjl "<<t->label.true_label << endl;
-        out <<"\tjmp "<<t->label.false_label<<endl;
-		break;
-    case OP_SORE:
-        out << "\tcmp $";
-        if (e2->nodeType == NODE_VAR)// ID
-			out << "_" << symtbl.getname(e2->attr.symtbl_seq);
-		else if (e2->nodeType == NODE_CONSTINT)// CONST INT
-        	out << e2->attr.vali;
-		else out << "t" << e2->temp_var;// A TEMP RESULT
-        out << ", " ;
-		if (e1->nodeType == NODE_VAR)
-			out << "_" << symtbl.getname(e1->attr.symtbl_seq);
-		else if (e1->nodeType == NODE_CONSTINT)
-			out << e1->attr.vali;
-		else out << "t" << e1->temp_var;
-		out <<"\tjle "<<t->label.true_label << endl;
-        out <<"\tjmp "<<t->label.false_label<<endl;
+			{
+                cout << "movl _" << name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ebx";
 
+            }
+		else if (e2->nodeType == NODE_CONSTINT)
+			{
+                cout<<"movl $";
+                if(e2->negative==1)
+                    cout<<"-";
+                cout<<e2->attr.vali<<",%ebx";
+
+            }
+		else {
+
+            cout << "movl t" << e2->temp_var<<",%ebx";
+        }
+        cout<<endl;
+        ///////////////////////////////////////////////////
+        if (e1->nodeType == NODE_VAR)
+			{
+                cout << "\tmovl _" << name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%eax";
+
+            }
+		else if (e1->nodeType == NODE_CONSTINT)
+			{
+                cout<<"\tmovl $";
+                if(e1->negative==1)
+                    cout<<"-";
+                cout<<e1->attr.vali<<",%eax"<<endl;
+            }
+		else {
+
+            cout << "movl t" << e1->temp_var<<",%eax";
+        }
+        cout << "\n\tcmpl %ebx,%eax";
+		cout <<"\n\tje "<<t->label.false_label << endl;
+        cout <<"\tjmp "<<t->label.true_label<<endl;
+		break;
+
+    case OP_OR://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        // cout << "\tmovl ";
+        // if (e1->nodeType == NODE_VAR)// ID
+		// 	cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name1));
+		// else if (e1->nodeType == NODE_CONSTINT)// CONST INT
+        // 	cout <<"$" << e1->attr.vali;
+		// else cout << "t" << e1->temp_var;// A TEMP RESULT
+        // cout << ", %eax" <<endl;
+        // cout<<"\tcompl %eax,$1"<<endl;
+        // cout<<"\tje "<<t->label.true_label<<endl;//if the first expr is true, then jmp to ture lable
+        // cout<<"\tjmp "<<t->label.false_label<<endl;
+        recursive_gen_code(cout,e2);
+        // cout << "\tmovl ";
+		// if (e2->nodeType == NODE_VAR)
+		// 	cout << "_" << name1<<symtbl.get_sconum(symtbl.findout(name2));
+		// else if (e2->nodeType == NODE_CONSTINT)
+		// 	cout <<"$" << e2->attr.vali;
+		// else cout << "t" << e2->temp_var;
+		// cout << ", %ebx" << endl;
+        // cout<<"\tcompl %eax,$1"<<endl;
+        // cout<<"\tje "<<t->label.true_label<<endl;//if the second expr is not true, then jmp to false
+        // cout<<"\tjmp "<<t->label.false_label<<endl;// i they both true, then goto true
+		break;
+    case OP_SMALLER://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        recursive_gen_code(cout,e2);
+        ////////////////////////////////////////////////////////////////////
+        cout<<"\t";
+		if (e2->nodeType == NODE_VAR)
+			{
+                cout << "movl _" << name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ebx";
+
+            }
+		else if (e2->nodeType == NODE_CONSTINT)
+			{
+                cout<<"movl $";
+                if(e2->negative==1)
+                    cout<<"-";
+                cout<<e2->attr.vali<<",%ebx";
+
+            }
+		else {
+
+            cout << "movl t" << e2->temp_var<<",%ebx";
+        }
+        cout<<endl;
+        ///////////////////////////////////////////////////
+        if (e1->nodeType == NODE_VAR)
+			{
+                cout << "\tmovl _" << name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%eax";
+
+            }
+		else if (e1->nodeType == NODE_CONSTINT)
+			{
+                cout<<"\tmovl $";
+                if(e1->negative==1)
+                    cout<<"-";
+                cout<<e1->attr.vali<<",%eax"<<endl;
+            }
+		else {
+
+            cout << "movl t" << e1->temp_var<<",%eax";
+        }
+        cout << "\n\tcmpl %ebx,%eax";
+		cout <<"\n\tjl "<<t->label.true_label;
+        cout <<"\n\tjmp "<<t->label.false_label<<endl;
+		break;
+
+
+    case OP_SORE://
+        if(t->label.begin_label!="")
+            cout<<t->label.begin_label<<":"<<endl;
+        recursive_gen_code(cout,e1);
+        recursive_gen_code(cout,e2);
+        ////////////////////////////////////////////////////////////////////
+        cout<<"\t";
+		if (e2->nodeType == NODE_VAR)
+			{
+                cout << "movl _" << name2<<symtbl.get_sconum(symtbl.findout(name2))<<",%ebx";
+
+            }
+		else if (e2->nodeType == NODE_CONSTINT)
+			{
+                cout<<"movl $";
+                if(e2->negative==1)
+                    cout<<"-";
+                cout<<e2->attr.vali<<",%ebx";
+
+            }
+		else {
+
+            cout << "movl t" << e2->temp_var<<",%ebx";
+        }
+        cout<<endl;
+        ///////////////////////////////////////////////////
+        if (e1->nodeType == NODE_VAR)
+			{
+                cout << "\tmovl _" << name1<<symtbl.get_sconum(symtbl.findout(name1))<<",%eax";
+
+            }
+		else if (e1->nodeType == NODE_CONSTINT)
+			{
+                cout<<"\tmovl $";
+                if(e1->negative==1)
+                    cout<<"-";
+                cout<<e1->attr.vali<<",%eax"<<endl;
+            }
+		else {
+
+            cout << "movl t" << e1->temp_var<<",%eax";
+        }
+        cout << "\n\tcmpl %ebx,%eax";
+		cout <<"\n\tjle "<<t->label.true_label << endl;
+        cout <<"\tjmp "<<t->label.false_label<<endl;
 		break;      
     /* ... */
 	}

@@ -15,7 +15,7 @@ WHILTESPACE [[:blank:]]
 
 INTEGER [0-9]+
 
-CHAR \'.?\'
+CHAR \'.+\'
 STRING \".+\"
 
 IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
@@ -29,6 +29,8 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 "bool" return T_BOOL;
 "char" return T_CHAR;
 "void" {return T_VOID;}
+"string" return T_STRING;
+
 
 "=" return LOP_ASSIGN;
 
@@ -66,6 +68,24 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 
 "(" return LPAREN;
 ")" return RPAREN;
+"true" {   
+    TreeNode* node=new TreeNode(lineno,NODE_CONSTINT);
+    node->var_name="true";
+    node->type=TYPE_INT;
+    node->attr.vali=1;
+    yylval=node;
+    return TRUE;
+}
+
+"false" {   
+    TreeNode* node=new TreeNode(lineno,NODE_CONSTINT);
+    node->var_name="false";
+    node->attr.vali=0;
+    node->type=TYPE_INT;
+    yylval=node;
+    return FALSE;
+}
+
 "{" {
     TreeNode* node=new TreeNode(lineno,NODE_BLOCK);
     node->var_name="new code block";
@@ -74,19 +94,20 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
     if (t<0)
         t=0;
     symtbl.scope.push(t);
+    symtbl.sconum++;
     return LBRACE;
     }
 "}" {
-    
+    symtbl.sconum--;
     int pos=symtbl.scope.top();
     if(pos>0)
     {
         string name=symtbl.getname(pos);
-        int token=symtbl.gettoken(name);
         string type=symtbl.get_type(pos);
-        symtbl.insert(name,token,type);
-        symtbl.setorder(symtbl.getsize()-1,pos);
+        symtbl.insert(name,symtbl.sconum,type);
+        symtbl.setorder(symtbl.getsize()-1,symtbl.getorder(pos));
         symtbl.scope.pop();
+
     }
     return RBRACE;
     }
@@ -94,6 +115,7 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 {INTEGER} {
     //number int
     TreeNode* node = new TreeNode(lineno, NODE_CONSTINT);
+    node->var_name="int";
     node->type = TYPE_INT;
     node->attr.vali = atoi(yytext);
     yylval = node;
@@ -103,7 +125,15 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 {CHAR} {
     TreeNode* node = new TreeNode(lineno, NODE_CONSTCHAR);
     node->type = TYPE_CHAR;
-    node->attr.vali = yytext[1];
+    string temp=string(yytext);
+    if(temp.length()==3)
+        node->attr.vali = yytext[1];
+    else {
+        if(yytext[2]=='t')
+            node->attr.vali = 9;
+        if(yytext[2]=='n')
+            node->attr.vali=10;
+    }
     yylval = node;
     return CHAR;
 }
@@ -116,9 +146,12 @@ IDENTIFIER [[:alpha:]_][[:alpha:][:digit:]_]*
 }
 
 {STRING} {
-    TreeNode* node = new TreeNode(lineno, NODE_CONST);
+    TreeNode* node = new TreeNode(lineno, NODE_CONSTSTRING);
     node->type=TYPE_STRING;
     node->var_name = string(yytext);
+    symtbl.insert(node->var_name);
+    node->attr.symtbl_seq=symtbl.getrosize()-1;//this seq is for getting the string later
+
     yylval = node;
     return STRING;
 }

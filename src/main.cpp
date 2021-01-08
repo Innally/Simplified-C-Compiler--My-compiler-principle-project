@@ -22,16 +22,15 @@ int main(int argc, char *argv[])
         }
     }
     yyparse();
-    if(root != NULL) {
-        //print root
-        root->genNodeId(0);
-        root->printNodeInfo();
-        //print the other node
-        root->printAST();
-        symtbl.print();
-    }
+    // if(root != NULL) {
+    //     //print root
+    //     root->genNodeId(0);
+    //     root->printNodeInfo();
+    //     //print the other node
+    //     root->printAST();
+    //     symtbl.print();
+    // }
     ofstream out("test.s",std::ios::out);
-    
     tree t(root);
     t.get_label();
     t.gen_code(out);
